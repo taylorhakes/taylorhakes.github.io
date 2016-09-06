@@ -1,0 +1,82 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link href="/img/favicon.png" rel="shortcut icon"><link href="/img/apple-touch-icon-precomposed.png" rel="apple-touch-icon"><meta name="HandheldFriendly" content="True"><meta name="MobileOptimized" content="320"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Creating a clock with setInterval - Taylor Hakes</title><meta name="description" content="If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time."><meta name="twitter:card" content="summary"><meta name="twitter:site" content="Taylor Hakes"><meta name="twitter:title" content="Creating a clock with setInterval"><meta name="twitter:description" content="If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time."><meta name="twitter:creator" content="Taylor Hakes"><meta property="og:type" content="article"><meta property="og:title" content="Creating a clock with setInterval"><meta property="og:description" content="&lt;p&gt;If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time.&lt;br&gt;"><meta property="og:site_name" content="Taylor Hakes"><link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Merriweather:300,700,700italic,300italic|Open+Sans:700,400"><link rel="stylesheet" type="text/css" href="/css/bootstrap.min.css"><link rel="stylesheet" type="text/css" href="/css/font-awesome.min.css"><link rel="stylesheet" type="text/css" href="/css/magnific-popup.css"><link rel="stylesheet" type="text/css" href="/css/YTPlayer.css"><link rel="stylesheet" type="text/css" href="/css/style.css"><link rel="stylesheet" type="text/css" href="/css/colors/default.css"><link rel="stylesheet" type="text/css" href="/css/monokai-sublime.css"></head><body data-site-layout="wide" data-post-mode="multimedia" data-post-align="center" data-uppercase="true" class="post-template"><div id="fb-root"></div><!--[if lt IE 9]
+<div class="outdated-frame">
+  You are using an <strong>outdated</strong> span browser. Please <a href="http://www.google.com/chrome/intl/en/landing_chrome.html">upgrade your browser</a>
+</div>
+![endif]--><div class="body-wrap"><div data-layout="wide" data-sticky="false" data-color-scheme="light" data-direction="default" class="header header-full-screen-center-logo"><div class="header-wrap"><div class="nav-container"><a href="javascript:;" class="mini-nav-button"><span>navigation</span></a></div><div class="addition-container"><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></div></div></div><div class="full-screen-nav"><div class="full-screen-nav-wrap"><div class="full-screen-nav-wrap-inner"><ul class="full-screen-nav-items"><li class="active"><a href="/">Home</a></li></ul></div></div></div><div class="search-container"><div class="search-container-wrap"><div class="search-container-wrap-inner"><div class="search-box"><h3 class="search-label">Search</h3><input id="search-keyword" type="search" name="search-keyword" placeholder="Type and hit enter!"><ul class="search-result"></ul></div></div></div></div><div class="main-wrap"><main role="main" class="body-content"><section itemscope="itemscope" itemtype="http://schema.org/BlogPosting" role="article" class="post formatted has-sub-meta"><div style="" class="post-header"><div class="header-wrap"><h1 itemprop="name headline" class="post-title">Creating a clock with setInterval</h1><div class="post-meta">By Taylor Hakes -<time datetime="Mon Aug 03 2015 01:00:00 GMT-0400" itemprop="datePublished"> Aug 3, 2015</time><div class="line"></div></div></div></div><div itemprop="articleBody" class="post-content"><div><p>If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time.<br><a id="more"></a><br>The clock ticks at irregular intervals and can get farther and farther from the correct time.</p>
+<p>Below is a possible first attempt:</p>
+<pre><code class="html">&lt;div id="clock"&gt;&lt;/div&gt;
+</code></pre>
+
+<pre><code class="javascript">var date = Date.now(),
+  second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj;
+  date += second;
+  dateObj = new Date(date);
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+setInterval(updateClock, second);
+</code></pre>
+
+<iframe width="100%" height="100" src="https://jsfiddle.net/skvg2jvz/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>If you check back on this clock after a few minutes, you will notice that the time gets off. Let’s try something else. How about we check the time/date on each tick and render the correct time.</p>
+<pre><code class="javascript">var second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj = new Date();
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+setInterval(updateClock, second);
+</code></pre>
+
+<iframe width="100%" height="100" src="https://jsfiddle.net/skvg2jvz/1/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>That works a lot better, the clock is no longer getting off the original time. But, if you watch the clock closely, you will see it occasionally skip a second and it is often not changing at the exact same time as the system clock.</p>
+<p>That happens because setInterval does not always call the function every second. It executes at (1 second) + (time Chrome is doing other things). Read my previous blog post on setInterval to get more details <a href="https://taylorhakes.com/2013/11/10/understanding-setinterval/">Understanding setInterval</a> . It also starts at a random time. It may be at the beginning or the end of the second.</p>
+<p>Here is an output of the rendering times.</p>
+<iframe width="100%" height="300" src="https://jsfiddle.net/bv0bpLqg/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>As you can see the last 3 numbers are increasing each tick. That is not ideal because it means the clock is becoming more and more incorrect. The next step is to take into account the rendering time and try to render on the exact second. This will happen when Date.now() has 000 at the end (because it is in milliseconds). We can use the % operator to calculate the next time. Let’s forget setInterval because we need more fine grained control over the next tick time.</p>
+<pre><code class="javascript">var second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj = new Date();
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+function clockInterval(fn) {
+    var time = second - (Date.now() % second);
+
+    setTimeout(function() {
+        fn();
+        clockInterval(fn);
+    }, time);
+}
+
+clockTimer(updateClock);
+</code></pre>
+
+<iframe width="100%" height="300" src="https://jsfiddle.net/qnqLzqtL/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>Now we have a clock that shows the right time and ticks at the correct time. It still isn’t perfect, but it’s as good as we can do while not blocking the event loop.</p>
+<p>If you want to use this code, I created a <a href="https://github.com/taylorhakes/clock-interval" target="_blank">github repo</a> and <a href="https://www.npmjs.com/package/clock-interval" target="_blank">a npm module</a>. If you have ideas to make this better, please post in the comments.</p>
+</div><div class="share-box"><div class="share-box-wrap"><h3 class="box-title">Thanks for reading!<span class="box-sub-title">Don't forget to spread the word:</span><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></h3></div></div></div></section><div class="article-end"></div><section data-current-url="" class="next-post"><div class="next-post-wrap"><div class="next-label">Next Story</div><h2 class="post-title"><a href="/posts/understanding-setinterval/">Understanding setInterval</a></h2><div class="post-meta">Nov 10, 2013</div><div class="next-arrow"><a href="/posts/understanding-setinterval/"><i class="fa fa-angle-double-down"></i></a></div></div></section></main><footer data-layout="wide" class="site-footer one-colum"><div class="site-footer-wrap"><a class="totop-btn"><i class="fa fa-chevron-up"></i></a><div class="footer-social"><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></div><div class="copyright"><p><span>Copyright © 2016 </span><a href="/">Taylor Hakes</a><span> All rights reserved.</span></p></div></div></footer></div></div><script src="https://code.jquery.com/jquery-2.1.4.min.js"></script><script src="/js/bootstrap.min.js"></script><script src="/js/jquery.mb.YTPlayer.js"></script><script src="/js/sdk.js"></script><script src="/js/waveform.js"></script><script src="/js/jquery.fitvids.js"></script><script src="/js/jquery.magnific-popup.min.js"></script><script src="/js/jqBootstrapValidation.js"></script><script src="/js/imagesloaded.pkgd.min.js"></script><script src="/js/moment.min.js"></script><script src="/js/pace.min.js"></script><script src="/js/jquery.placeholder.js"></script><script src="/js/highlight.js"></script><script src="/js/main.js"></script></body></html>

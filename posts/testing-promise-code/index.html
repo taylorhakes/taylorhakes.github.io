@@ -1,0 +1,135 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link href="/img/favicon.png" rel="shortcut icon"><link href="/img/apple-touch-icon-precomposed.png" rel="apple-touch-icon"><meta name="HandheldFriendly" content="True"><meta name="MobileOptimized" content="320"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Testing Promise Code - Taylor Hakes</title><meta name="description" content="If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward."><meta name="twitter:card" content="summary"><meta name="twitter:site" content="Taylor Hakes"><meta name="twitter:title" content="Testing Promise Code"><meta name="twitter:description" content="If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward."><meta name="twitter:creator" content="Taylor Hakes"><meta property="og:type" content="article"><meta property="og:title" content="Testing Promise Code"><meta property="og:description" content="&lt;p&gt;If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward.&lt;br&gt;"><meta property="og:site_name" content="Taylor Hakes"><link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Merriweather:300,700,700italic,300italic|Open+Sans:700,400"><link rel="stylesheet" type="text/css" href="/css/bootstrap.min.css"><link rel="stylesheet" type="text/css" href="/css/font-awesome.min.css"><link rel="stylesheet" type="text/css" href="/css/magnific-popup.css"><link rel="stylesheet" type="text/css" href="/css/YTPlayer.css"><link rel="stylesheet" type="text/css" href="/css/style.css"><link rel="stylesheet" type="text/css" href="/css/colors/default.css"><link rel="stylesheet" type="text/css" href="/css/monokai-sublime.css"></head><body data-site-layout="wide" data-post-mode="multimedia" data-post-align="center" data-uppercase="true" class="post-template"><div id="fb-root"></div><!--[if lt IE 9]
+<div class="outdated-frame">
+  You are using an <strong>outdated</strong> span browser. Please <a href="http://www.google.com/chrome/intl/en/landing_chrome.html">upgrade your browser</a>
+</div>
+![endif]--><div class="body-wrap"><div data-layout="wide" data-sticky="false" data-color-scheme="light" data-direction="default" class="header header-full-screen-center-logo"><div class="header-wrap"><div class="nav-container"><a href="javascript:;" class="mini-nav-button"><span>navigation</span></a></div><div class="addition-container"><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></div></div></div><div class="full-screen-nav"><div class="full-screen-nav-wrap"><div class="full-screen-nav-wrap-inner"><ul class="full-screen-nav-items"><li class="active"><a href="/">Home</a></li></ul></div></div></div><div class="search-container"><div class="search-container-wrap"><div class="search-container-wrap-inner"><div class="search-box"><h3 class="search-label">Search</h3><input id="search-keyword" type="search" name="search-keyword" placeholder="Type and hit enter!"><ul class="search-result"></ul></div></div></div></div><div class="main-wrap"><main role="main" class="body-content"><section itemscope="itemscope" itemtype="http://schema.org/BlogPosting" role="article" class="post formatted has-sub-meta"><div style="" class="post-header"><div class="header-wrap"><h1 itemprop="name headline" class="post-title">Testing Promise Code</h1><div class="post-meta">By Taylor Hakes -<time datetime="Wed Aug 19 2015 01:00:00 GMT-0400" itemprop="datePublished"> Aug 19, 2015</time><div class="line"></div></div></div></div><div itemprop="articleBody" class="post-content"><div><p>If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward.<br><a id="more"></a><br>It has definitely become easier over the last couple years. Newer versions of mocha let you return a Promise from a test and it automatically waits for the result. This is what code looks like normally.</p>
+<pre><code class="javascript">// Some Promise code
+function promiseFunc() {
+  return Promise.resolve('result');
+}
+
+// The test
+it('Promise Test', function(done) {
+  promiseFunc().then(function(result) {
+    expect(result).toBe('result');
+  }).then(done, done);
+});
+</code></pre>
+
+<p>And with new Mocha versions</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  return promiseFunc().then(function(result) {
+    expect(result).toBe('result');
+  });
+});
+</code></pre>
+
+<p>This removes the need for the <code>done()</code> function. It figures out the function returns a Promise and waits correctly. This is pretty good, but there are a few issues for me. Depending on your Promise implementation, async tests can add additional time to your unit tests, especially if you use a lot of Promises. Another issue is stack traces. In async code, you lose some of your stack trace and it can be difficult to see what caused an error. And lastly, I would prefer not to nest my expects. It makes the code harder to follow (the following code in upcoming ES7 will solve the nesting issue)</p>
+<pre><code class="javascript">it('Promise Test', async function() {
+  const result = await promiseFunc();
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>Ideally it would be nice if we could write tests like this.</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  var result = promiseFunc();
+  expect(result).toBe('result');
+});
+</code></pre>
+It would be nice if we could make Promises be synchronous. If you know the Promise spec, you probably are shaking your head. "Promises are async by default!" That is true, but what if we could make them act pseudo async (patent pending).
+
+Here is how it could work
+<pre><code class="javascript">it('Promise Test', function() {
+    var result;
+    promiseFunc().then(function(promResult) {
+        result = promResult;
+    });
+
+    // Need to make this work
+    Promise.runAll();
+
+    expect(result).toBe('result');
+});
+</code></pre>
+
+<p>In the <code>runAll</code> function above, we will execute all the async callbacks synchronously. To the code being tested, it will appear async. So we shouldn’t have to worry about a <code>.then</code> being called at the wrong time. To the test, it will be completely sychronous.</p>
+<p>In order to do this we first need to mock all Promises used by the code. Basically, replace the Promise implementation with a mock. The second step is to hook into the async portion of the code and make it be synchronous.</p>
+<p>I happen to have created a Promise library a few months back: <a href="https://github.com/taylorhakes/promise-polyfill" target="_blank" rel="external">promise-polyfill</a>. I already have a way to change the async callback implementation as part of the API. It was used for switching between <code>setImmediate</code>, <code>process.nextTick</code>, <code>setTimeout</code>, etc. for executing async callbacks.</p>
+<p>All I have to do is use that hook to queue the async callbacks and execute them in the future. The code looks like this.</p>
+<pre><code class="javascript">// Queue of waiting callbacks
+var waitingCallbacks = [];
+
+// Update the immediate function to push to queue
+PromiseMock._setImmediateFn(function mockImmediateFn(fn) {
+    waitingCallbacks.push(fn);
+}
+</code></pre>
+Then our `runAll` function can just take each function in the queue and execute them
+<pre><code class="javascript">// Execute all pending Promise callbacks
+PromiseMock.runAll = function runAll() {
+    while(PromiseMock.waiting.length > 0) {
+        waitingCallbacks.pop()();
+    }
+};
+</code></pre>
+
+<p>Finally, we can remove the boilerplate of retrieving the value from <code>.then</code> and calling <code>runAll()</code> by creating this function.</p>
+<pre><code class="javascript">PromiseMock.getResult = function result(promise) {
+    var result, error;
+    promise.then(function(promResult) {
+        result = promResult;
+    }, function(promError) {
+        error = promError;
+    });
+    PromiseMock.runAll();
+    if (error) {
+        throw error;
+    }
+    return result;
+};
+</code></pre>
+And it can be used like this.
+<pre><code class="javascript">it('Promise Test', function() {
+  var result = PromiseMock.getResult(promiseFunc());
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>The full code with the <a href="https://github.com/taylorhakes/promise-mock" target="_blank" rel="external">promise-mock</a> would be:</p>
+<pre><code class="javascript">var PromiseMock = require('promise-mock');
+
+// Some Promise code
+function promiseFunc() {
+  return Promise.resolve('result');
+}
+
+describe('Promise Group', function() {
+  beforeEach(function() {
+    PromiseMock.install();
+  });
+  beforeEach(function() {
+    PromiseMock.uninstall();
+  });
+  it('Promise Test', function() {
+    var result = PromiseMock.getResult(promiseFunc());
+    expect(result).toBe('result');
+  });
+});
+
+</code></pre>
+
+<p>The library currently only works with <code>Promise</code> in the global scope. The library also assumes that all Promise code returns immediately. If you have some sort of setTimeout, you will have remedy that as well.</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  var prom = promiseFunc();
+
+  // Remedy setTimeout synchronously, etc
+  jasmine.clock().tick(101);
+
+  var result = PromiseMock.getResult(prom);
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>For more information, check out <a href="https://github.com/taylorhakes/promise-mock" target="_blank" rel="external">promise-mock</a></p>
+</div><div class="share-box"><div class="share-box-wrap"><h3 class="box-title">Thanks for reading!<span class="box-sub-title">Don't forget to spread the word:</span><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></h3></div></div></div></section><div class="article-end"></div><section data-current-url="" class="next-post"><div class="next-post-wrap"><div class="next-label">Next Story</div><h2 class="post-title"><a href="/posts/creating-a-clock-with-setinterval/">Creating a clock with setInterval</a></h2><div class="post-meta">Aug 3, 2015</div><div class="next-arrow"><a href="/posts/creating-a-clock-with-setinterval/"><i class="fa fa-angle-double-down"></i></a></div></div></section></main><footer data-layout="wide" class="site-footer one-colum"><div class="site-footer-wrap"><a class="totop-btn"><i class="fa fa-chevron-up"></i></a><div class="footer-social"><ul class="social"><li class="github"><a href="https://github.com/taylorhakes" target="_blank" title="github"><i class="fa fa-github"></i></a></li><li class="twitter"><a href="https://twitter.com/TaylorHakes" target="_blank" title="twitter"><i class="fa fa-twitter"></i></a></li><li class="linkedin"><a href="https://www.linkedin.com/in/taylorhakes" target="_blank" title="linkedin"><i class="fa fa-linkedin"></i></a></li></ul></div><div class="copyright"><p><span>Copyright © 2016 </span><a href="/">Taylor Hakes</a><span> All rights reserved.</span></p></div></div></footer></div></div><script src="https://code.jquery.com/jquery-2.1.4.min.js"></script><script src="/js/bootstrap.min.js"></script><script src="/js/jquery.mb.YTPlayer.js"></script><script src="/js/sdk.js"></script><script src="/js/waveform.js"></script><script src="/js/jquery.fitvids.js"></script><script src="/js/jquery.magnific-popup.min.js"></script><script src="/js/jqBootstrapValidation.js"></script><script src="/js/imagesloaded.pkgd.min.js"></script><script src="/js/moment.min.js"></script><script src="/js/pace.min.js"></script><script src="/js/jquery.placeholder.js"></script><script src="/js/highlight.js"></script><script src="/js/main.js"></script></body></html>

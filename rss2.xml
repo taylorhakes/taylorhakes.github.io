@@ -1,0 +1,527 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Taylor Hakes</title>
+    <link>https://taylorhakes.com/</link>
+    <atom:link href="/rss2.xml" rel="self" type="application/rss+xml"/>
+    
+    <description>Taylor Hakes is a web developer living in New York. Taylor currently works at IEX developing with Javascript, Node, Python and HTML.</description>
+    <pubDate>Tue, 06 Sep 2016 05:48:50 GMT</pubDate>
+    <generator>http://hexo.io/</generator>
+    
+    <item>
+      <title>Replace redux-promise with redux-observable</title>
+      <link>https://taylorhakes.com/posts/replace-redux-promise-with-redux-observable/</link>
+      <guid>https://taylorhakes.com/posts/replace-redux-promise-with-redux-observable/</guid>
+      <pubDate>Tue, 06 Sep 2016 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;Redux is a great way to manage your state in any React application. To learn the basics of Redux, visit the &lt;a href=&quot;http://redux.js.org/
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>Redux is a great way to manage your state in any React application. To learn the basics of Redux, visit the <a href="http://redux.js.org/" target="_blank" rel="external">Redux website</a> . </p>
+<p>A very simple Redux application looks something like this</p>
+<pre><code>Reducers ──────────────────────────▶ React  (View)
+ ▲                                    │
+ │                                    │
+ │                                    │
+ │                                    │
+ │                                    ▼
+ └─────────────────────────────── Actions
+                           (onClick, onSumbit, etc.)
+</code></pre>
+
+<p>This setup works for really simple applications, but fails to provide the ability to make API calls or use websockets, timers, etc. Where are you suppose to put all that? Luckily, Redux has a feature called middleware. Redux middleware is a function that has the following signature.</p>
+<pre><code class="javascript">store => next => action => undefined
+</code></pre>
+
+<p>In ES5 it would a function like this</p>
+<pre><code class="javascript">function (store) {
+    return function(next) {
+        return function(action) {
+          // Do something with each action
+        };
+    }
+}
+</code></pre>
+
+<p>It sits between the actions and the reducers in the diagram.</p>
+<pre><code>Reducers ──────────────────────────▶ React  (View)
+ ▲                                    │
+ │                                    │
+ │                                    │
+ │                                    │
+ │                                    ▼
+middleware ◀─────────────────────── Actions
+                           (onClick, onSumbit, etc.)
+</code></pre>
+
+<p>The <code>store</code> is the instance of the redux store. The <code>next</code> is the next middleware in the chain and the <code>action</code> is the action sent by the action creater. <a href="http://redux.js.org/docs/advanced/Middleware.html" target="_blank" rel="external">Get more info here</a></p>
+<p>Middleware allows you to do some really powerful things. For instance, you can return a <code>Promise</code> as an action and then create middleware to wait for the Promise to resolve and send the data as an action. That is how the <a href="https://github.com/acdlite/redux-promise/blob/master/src/index.js" target="_blank" rel="external">redux-promise</a> middleware works. Another middleware example is <a href="https://github.com/gaearon/redux-thunk/blob/master/src/index.js" target="_blank" rel="external">redux-thunk</a>, which is similar to redux-promise, but uses callbacks instead of Promises.</p>
+<p>Both of those libraries are great and a lot of redux developers use them, but there are still some problems. How do you cancel actions, or make sure actions are in order? In an autocomplete the user may type multiple keys quickly and API responses can come back in the incorrect order.</p>
+<p>Or what about timers? Maybe you want to show a message and have it disappear after 10 seconds, but the user is able to close the message box before the 10 seconds finish. redux-promise and redux-thunk don’t work well for those use cases. Some developers write the timers in their React views, but that has issues as well.</p>
+<p>There is a better way! <a href="https://github.com/redux-observable/redux-observable" target="_blank" rel="external">redux-observable</a> is the better way. redux-observable is a middleware, just like the ones I described earlier, except it uses <a href="https://github.com/ReactiveX/rxjs" target="_blank" rel="external">RxJS Observables</a> instead of Promises/callbacks. If you are not familiar with Observables, that is OK. You can see some of the features and then get more details later. Observables are incredibly powerful. They allow you to use all the operations you use on arrays (map, filter, reduce, etc.) on events over time, or in our case, Redux actions over time.</p>
+<p>This is the diagram with redux-observable.</p>
+<pre><code>Reducers ──────────────────────────▶ React  (View)
+ ▲                                    │
+ │                                    │
+ │                                    │
+ │                                    │
+ │                                    ▼
+Observables ◀────────────────────── Actions
+ ▲      │                    (onClick, onSumbit, etc.)         
+ │      ▼                         
+  ◀─────
+</code></pre>
+
+<p>There is a loop on Observables because Observables can trigger other Observables in a loop. With redux-observable, your actions are just plain javascript objects. Just like the original diagram. They are not functions or Promises like with redux-promise/redux-thunk. You create Observables that interact with the Javascript objects (actions) and do all the heavy lifting of ajax, timers, etc.</p>
+<p>Here is what the code for a simple redux-observable <code>epic</code> looks like. An <code>epic</code> is a function that takes an Observable of Redux actions and returns a new Observable. Let’s take<br>a look at an example.</p>
+<pre><code class="javascript">const mapEpic = (action$) =>
+    action$.ofType('SOME_ACTION').map((action) => {
+        return {
+            type: 'ANOTHER_ACTION',
+            payload: action.payload
+        };
+    });
+</code></pre>
+
+<p>In the above <code>epic</code>, we filter for actions with type <code>&#39;SOME_ACTION&#39;</code> using the <code>.ofType</code> and then use <code>.map</code> (exactly like with arrays) to change the action to <code>&#39;ANOTHER_ACTION&#39;</code>. <code>ofType</code> and <code>map</code> are RxJS operators. A full list can be found on the <a href="A full list is available on the [RxJS website](http://reactivex.io/rxjs/manual/overview.html#operators">RxJS website</a>.</p>
+<p>Just like the reducers in Redux, every <code>epic</code> will receive all the actions. That is why the <code>ofType</code> is necessary. The dollar sign at the end of <code>action$</code> is just a naming convention for Observables. It is like the convention for jquery elements <code>$el</code>.</p>
+<p>The <code>&#39;ANOTHER_ACTION&#39;</code> will get passed to the reducers after the original <code>&#39;SOME_ACTION&#39;</code>.</p>
+<p>Now for something a little bit more powerful. Let’s make the autocomplete from earlier work correctly by only rendering the most current ajax call.</p>
+<pre><code class="javascript">import { ajax } 'rxjs/observable/dom/ajax';
+
+const apiEpic = (action$) =>
+    action$.ofType('AJAX_CALL').switchMap((action) =>
+        ajax({url: '/some-data'}).map((result) => {
+            const data = JSON.parse(result.response);
+            return {
+                type: 'AJAX_CALL_RESPONSE',
+                payload: data
+            };
+        })
+    )
+</code></pre>
+
+<p>The above code uses an <code>ajax</code> function from RxJS. It is very similar to the <code>fetch</code> API except it returns an Observable instead of a Promise. The <code>switchMap</code> function is the important piece. <code>switchMap</code> will discard the old request if a new <code>&#39;AJAX_CALL&#39;</code> action comes in before the API responds. <code>switchMap</code> is another RxJS operator. </p>
+<p>Now lets see how to do the message timer with cancel.</p>
+<pre><code class="javascript">import { of } from 'rxjs/observable/of';
+
+const messageEpic = (action$) =>  {
+    const cancelMessages$ = action$.ofType('MESSAGE_END');
+
+    return action$.ofType('MESSAGE').mergeMap((action) =>
+        of({ type: 'MESSAGE_END' })
+            .delay(10000)
+            .takeUntil(cancelMessages$);
+};
+
+</code></pre>
+
+<p>This <code>epic</code> is a little more complicated. We listen for type <code>&#39;MESSAGE&#39;</code>. For each one, we create an Observable <code>of</code> type <code>&#39;MESSAGE_END&#39;</code> and delay it 10000 millis (10 seconds). <code>takeUntil</code> means ignore the actions/events if another Observable emits a value. In this case, don’t send a <code>&#39;MESSAGE_END&#39;</code> if the user sends a <code>&#39;MESSAGE_END&#39;</code> before the 10 seconds are done. <code>mergeMap</code> is necessary instead of <code>map</code> because <code>of</code> creates an Observable and we want to merge (or flatten) the Observable. Similar to <a href="https://lodash.com/docs/4.15.0#flatMap" target="_blank" rel="external">flatMap</a> with arrays.</p>
+<p>Hopefully I have peaked your interest a little. redux-observable has made my UI development a lot easier. To learn more about redux-observable, head over to the <a href="https://github.com/redux-observable/redux-observable" target="_blank" rel="external">redux-observable github page</a>.</p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/replace-redux-promise-with-redux-observable/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Fix Github Tab Formatting</title>
+      <link>https://taylorhakes.com/posts/Github-Tab-Formatting/</link>
+      <guid>https://taylorhakes.com/posts/Github-Tab-Formatting/</guid>
+      <pubDate>Tue, 19 Apr 2016 02:14:57 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;If you use tabs and commit your code to Github, you probably are annoyed at how Github formats your code. Github, by default, makes tabs 
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>If you use tabs and commit your code to Github, you probably are annoyed at how Github formats your code. Github, by default, makes tabs appear as 8 spaces.</p>
+<p><img src="/img/github-tabs.png" alt="Github Tabs"></p>
+<p>There may be a few people who use this style, but the majority of people have their editor make tabs appear as 4 or 2 spaces. Luckily there is a solution that I stumbled upon recently. Add an <a href="http://editorconfig.org/" target="_blank" rel="external">.editorconfig</a> file to your repo at the top level.</p>
+<p>If you haven’t used an <a href="http://editorconfig.org/" target="_blank" rel="external">.editorconfig</a>, it essentially is a file that tells your editor how to indent code, end lines, end the file and which character set to use. Even if you don’t want to change your Github formatting, it is a very useful file. People are less likely to commit badly formatted code. Most editors support .editorconfig out of the box or with plugins.</p>
+<p>Here is the .editorconfig that I use to make tabs look like 2 spaces.</p>
+<p><img src="/img/editorconfig.png" alt=".editorconfig"></p>
+<p>With the above .editorconfig committed to the repo, the code now looks like this on Github.</p>
+<p><img src="/img/github-tabs-spaces.png" alt="Github Tabs Spaces"></p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/Github-Tab-Formatting/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Introducing Painless Testing Library</title>
+      <link>https://taylorhakes.com/posts/introducing-painless-testing-library/</link>
+      <guid>https://taylorhakes.com/posts/introducing-painless-testing-library/</guid>
+      <pubDate>Tue, 16 Feb 2016 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;&lt;a href=&quot;https://github.com/taylorhakes/painless&quot; target=&quot;_blank&quot; rel=&quot;external&quot;&gt;Painless&lt;/a&gt; is a new javascript testing library. It imp
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p><a href="https://github.com/taylorhakes/painless" target="_blank" rel="external">Painless</a> is a new javascript testing library. It improves upon other libraries such as Mocha, Jasmine, and Tape. Painless comes bundled with the ability to run your tests, mock any dependencies and assert that your code is working. Here are some of the main issues trying to be solved by painless.</p>
+<h4 id="Modern-Javascript-Support"><a href="#Modern-Javascript-Support" class="headerlink" title="Modern Javascript Support"></a>Modern Javascript Support</h4><p>In 2016, most javascript developers are writing some ES6/ES2015 code. Promises, generators, async/await, observables are all very powerful, but can only be harnessed if the testing library supports them. Painless has first class support for these features.</p>
+<h4 id="Figuring-out-what-is-wrong"><a href="#Figuring-out-what-is-wrong" class="headerlink" title="Figuring out what is wrong"></a>Figuring out what is wrong</h4><p>If you write tests, inevitably some will eventually fail. It is important for the test library to tell you what is wrong as efficiently as possible. Other libraries give you way too much noise. You will often see a stack trace that includes test library code or you will see a badly formatted diff, making it really hard to see what is wrong. Painless tries to only show you the information that is relevant to why your test is failing. </p>
+<h5 id="Jasmine-output"><a href="#Jasmine-output" class="headerlink" title="Jasmine output"></a>Jasmine output</h5><p><img src="/img/jasmine.png" alt="test error"></p>
+<h5 id="Painless-output"><a href="#Painless-output" class="headerlink" title="Painless output"></a>Painless output</h5><p><img src="/img/painless.png" alt="test error"><br>In addition, painless is just a standard Node process. If you need to use the debugger, you can use all the same tools you are familiar with.</p>
+<h4 id="Really-fast"><a href="#Really-fast" class="headerlink" title="Really fast"></a>Really fast</h4><p>Time waiting for your tests to finish is time you should be writing code. Painless is very fast out of the box and also has the option to run your tests async, which speeds up network and IO tests. AVA test library has a similar feature, but AVA runs your tests in subprocesses, which makes code harder to debug. Painless uses Node’s async nature to run tests while waiting for IO or the network, all in a single thread.</p>
+<h4 id="Easy-to-use"><a href="#Easy-to-use" class="headerlink" title="Easy to use"></a>Easy to use</h4><p>Some libraries make you install a bunch of extra dependencies before you can start testing. For instance, Mocha needs an assertion library, a mocking library and a couple other libaries for most use cases. It can be annoying to install 4+ libraries to get started. Mocha is modular, but the trade off makes the library harder to use.</p>
+<h4 id="Run-tests-in-Node-and-browsers"><a href="#Run-tests-in-Node-and-browsers" class="headerlink" title="Run tests in Node and browsers"></a>Run tests in Node and browsers</h4><p>Painless supports running tests in Node and browsers. With no code changes you can run all your tests in Node, Chrome, PhantomJS or any other browser.</p>
+<h4 id="No-globals"><a href="#No-globals" class="headerlink" title="No globals"></a>No globals</h4><p>Painless tests don’t depend upon <code>describe</code>, <code>it</code>, <code>expect</code>, etc. to be in the global scope. This allows painless to run as a simple node process <code>node test.js</code>.</p>
+<h4 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h4><p>I have been working hard to make <a href="https://github.com/taylorhakes/painless" target="_blank" rel="external">painless</a> the best test library. If any of the above features are interesting, check out <a href="https://github.com/taylorhakes/painless" target="_blank" rel="external">painless</a>. If you would like to see comparisons to other test libraries, <a href="https://github.com/taylorhakes/painless#compared-to-other-libraries-" target="_blank" rel="external">go here</a>. Even if you don’t use painless, keep writing tests.</p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/introducing-painless-testing-library/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Github exposes your personal email address</title>
+      <link>https://taylorhakes.com/posts/get-any-github-users-email-address/</link>
+      <guid>https://taylorhakes.com/posts/get-any-github-users-email-address/</guid>
+      <pubDate>Sun, 07 Feb 2016 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;Github by default exposes your personal or work email in GIT history. It is not visible on the Github website, but easily available from 
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>Github by default exposes your personal or work email in GIT history. It is not visible on the Github website, but easily available from the command line. </p>
+<p><img src="/img/git-log.png" alt="git-log"></p>
+<p>This is very unfortunate default. Github recognizes this as an issue and has a <a href="https://help.github.com/articles/keeping-your-email-address-private/" target="_blank" rel="external">page dedicated</a> to ways to change the default. I recommend everyone follow the steps in the article and anonymize their email. Unfortunately, there is no reasonable way to modify old commits with your private email. Github suggests modifying GIT history, but this is not an option on any public repos or any repo you do not have control over.</p>
+<p>Hopefully Github can change this default behavior and figure out a way to hide existing email addresses.</p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/get-any-github-users-email-address/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>React Javascript NYC Talk</title>
+      <link>https://taylorhakes.com/posts/react-javascript-nyc-talk/</link>
+      <guid>https://taylorhakes.com/posts/react-javascript-nyc-talk/</guid>
+      <pubDate>Thu, 29 Oct 2015 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;I recently gave a talk on how to “Supercharge your React.js Development.” The video was just posted online.&lt;br&gt;
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>I recently gave a talk on how to “Supercharge your React.js Development.” The video was just posted online.<br><a id="more"></a></p>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/yYcS9E4yRqw" frameborder="0" allowfullscreen></iframe>]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/react-javascript-nyc-talk/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Testing Promise Code</title>
+      <link>https://taylorhakes.com/posts/testing-promise-code/</link>
+      <guid>https://taylorhakes.com/posts/testing-promise-code/</guid>
+      <pubDate>Wed, 19 Aug 2015 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward.&lt;br&gt;
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>If you have ever tried to write tests for Promise based code, you may have realized it’s not exactly straight forward.<br><a id="more"></a><br>It has definitely become easier over the last couple years. Newer versions of mocha let you return a Promise from a test and it automatically waits for the result. This is what code looks like normally.</p>
+<pre><code class="javascript">// Some Promise code
+function promiseFunc() {
+  return Promise.resolve('result');
+}
+
+// The test
+it('Promise Test', function(done) {
+  promiseFunc().then(function(result) {
+    expect(result).toBe('result');
+  }).then(done, done);
+});
+</code></pre>
+
+<p>And with new Mocha versions</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  return promiseFunc().then(function(result) {
+    expect(result).toBe('result');
+  });
+});
+</code></pre>
+
+<p>This removes the need for the <code>done()</code> function. It figures out the function returns a Promise and waits correctly. This is pretty good, but there are a few issues for me. Depending on your Promise implementation, async tests can add additional time to your unit tests, especially if you use a lot of Promises. Another issue is stack traces. In async code, you lose some of your stack trace and it can be difficult to see what caused an error. And lastly, I would prefer not to nest my expects. It makes the code harder to follow (the following code in upcoming ES7 will solve the nesting issue)</p>
+<pre><code class="javascript">it('Promise Test', async function() {
+  const result = await promiseFunc();
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>Ideally it would be nice if we could write tests like this.</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  var result = promiseFunc();
+  expect(result).toBe('result');
+});
+</code></pre>
+It would be nice if we could make Promises be synchronous. If you know the Promise spec, you probably are shaking your head. "Promises are async by default!" That is true, but what if we could make them act pseudo async (patent pending).
+
+Here is how it could work
+<pre><code class="javascript">it('Promise Test', function() {
+    var result;
+    promiseFunc().then(function(promResult) {
+        result = promResult;
+    });
+
+    // Need to make this work
+    Promise.runAll();
+
+    expect(result).toBe('result');
+});
+</code></pre>
+
+<p>In the <code>runAll</code> function above, we will execute all the async callbacks synchronously. To the code being tested, it will appear async. So we shouldn’t have to worry about a <code>.then</code> being called at the wrong time. To the test, it will be completely sychronous.</p>
+<p>In order to do this we first need to mock all Promises used by the code. Basically, replace the Promise implementation with a mock. The second step is to hook into the async portion of the code and make it be synchronous.</p>
+<p>I happen to have created a Promise library a few months back: <a href="https://github.com/taylorhakes/promise-polyfill" target="_blank" rel="external">promise-polyfill</a>. I already have a way to change the async callback implementation as part of the API. It was used for switching between <code>setImmediate</code>, <code>process.nextTick</code>, <code>setTimeout</code>, etc. for executing async callbacks.</p>
+<p>All I have to do is use that hook to queue the async callbacks and execute them in the future. The code looks like this.</p>
+<pre><code class="javascript">// Queue of waiting callbacks
+var waitingCallbacks = [];
+
+// Update the immediate function to push to queue
+PromiseMock._setImmediateFn(function mockImmediateFn(fn) {
+    waitingCallbacks.push(fn);
+}
+</code></pre>
+Then our `runAll` function can just take each function in the queue and execute them
+<pre><code class="javascript">// Execute all pending Promise callbacks
+PromiseMock.runAll = function runAll() {
+    while(PromiseMock.waiting.length > 0) {
+        waitingCallbacks.pop()();
+    }
+};
+</code></pre>
+
+<p>Finally, we can remove the boilerplate of retrieving the value from <code>.then</code> and calling <code>runAll()</code> by creating this function.</p>
+<pre><code class="javascript">PromiseMock.getResult = function result(promise) {
+    var result, error;
+    promise.then(function(promResult) {
+        result = promResult;
+    }, function(promError) {
+        error = promError;
+    });
+    PromiseMock.runAll();
+    if (error) {
+        throw error;
+    }
+    return result;
+};
+</code></pre>
+And it can be used like this.
+<pre><code class="javascript">it('Promise Test', function() {
+  var result = PromiseMock.getResult(promiseFunc());
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>The full code with the <a href="https://github.com/taylorhakes/promise-mock" target="_blank" rel="external">promise-mock</a> would be:</p>
+<pre><code class="javascript">var PromiseMock = require('promise-mock');
+
+// Some Promise code
+function promiseFunc() {
+  return Promise.resolve('result');
+}
+
+describe('Promise Group', function() {
+  beforeEach(function() {
+    PromiseMock.install();
+  });
+  beforeEach(function() {
+    PromiseMock.uninstall();
+  });
+  it('Promise Test', function() {
+    var result = PromiseMock.getResult(promiseFunc());
+    expect(result).toBe('result');
+  });
+});
+
+</code></pre>
+
+<p>The library currently only works with <code>Promise</code> in the global scope. The library also assumes that all Promise code returns immediately. If you have some sort of setTimeout, you will have remedy that as well.</p>
+<pre><code class="javascript">it('Promise Test', function() {
+  var prom = promiseFunc();
+
+  // Remedy setTimeout synchronously, etc
+  jasmine.clock().tick(101);
+
+  var result = PromiseMock.getResult(prom);
+  expect(result).toBe('result');
+});
+</code></pre>
+
+<p>For more information, check out <a href="https://github.com/taylorhakes/promise-mock" target="_blank" rel="external">promise-mock</a></p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/testing-promise-code/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Creating a clock with setInterval</title>
+      <link>https://taylorhakes.com/posts/creating-a-clock-with-setinterval/</link>
+      <guid>https://taylorhakes.com/posts/creating-a-clock-with-setinterval/</guid>
+      <pubDate>Mon, 03 Aug 2015 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time.&lt;br&gt;
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>If you have ever created a Javascript clock, you may have noticed some issues with using setInterval to update the time.<br><a id="more"></a><br>The clock ticks at irregular intervals and can get farther and farther from the correct time.</p>
+<p>Below is a possible first attempt:</p>
+<pre><code class="html">&lt;div id="clock"&gt;&lt;/div&gt;
+</code></pre>
+
+<pre><code class="javascript">var date = Date.now(),
+  second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj;
+  date += second;
+  dateObj = new Date(date);
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+setInterval(updateClock, second);
+</code></pre>
+
+<iframe width="100%" height="100" src="https://jsfiddle.net/skvg2jvz/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>If you check back on this clock after a few minutes, you will notice that the time gets off. Let’s try something else. How about we check the time/date on each tick and render the correct time.</p>
+<pre><code class="javascript">var second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj = new Date();
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+setInterval(updateClock, second);
+</code></pre>
+
+<iframe width="100%" height="100" src="https://jsfiddle.net/skvg2jvz/1/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>That works a lot better, the clock is no longer getting off the original time. But, if you watch the clock closely, you will see it occasionally skip a second and it is often not changing at the exact same time as the system clock.</p>
+<p>That happens because setInterval does not always call the function every second. It executes at (1 second) + (time Chrome is doing other things). Read my previous blog post on setInterval to get more details <a href="https://taylorhakes.com/2013/11/10/understanding-setinterval/">Understanding setInterval</a> . It also starts at a random time. It may be at the beginning or the end of the second.</p>
+<p>Here is an output of the rendering times.</p>
+<iframe width="100%" height="300" src="https://jsfiddle.net/bv0bpLqg/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>As you can see the last 3 numbers are increasing each tick. That is not ideal because it means the clock is becoming more and more incorrect. The next step is to take into account the rendering time and try to render on the exact second. This will happen when Date.now() has 000 at the end (because it is in milliseconds). We can use the % operator to calculate the next time. Let’s forget setInterval because we need more fine grained control over the next tick time.</p>
+<pre><code class="javascript">var second = 1000;
+
+function pad(num) {
+  return ('0' + num).slice(-2);
+}
+
+function updateClock() {
+  var clockEl = document.getElementById('clock'),
+    dateObj = new Date();
+  clockEl.innerHTML = pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+}
+
+function clockInterval(fn) {
+    var time = second - (Date.now() % second);
+
+    setTimeout(function() {
+        fn();
+        clockInterval(fn);
+    }, time);
+}
+
+clockTimer(updateClock);
+</code></pre>
+
+<iframe width="100%" height="300" src="https://jsfiddle.net/qnqLzqtL/embedded/result%2Cjs%2Chtml/" allowfullscreen="allowfullscreen" frameborder="0"></iframe>
+
+<p>Now we have a clock that shows the right time and ticks at the correct time. It still isn’t perfect, but it’s as good as we can do while not blocking the event loop.</p>
+<p>If you want to use this code, I created a <a href="https://github.com/taylorhakes/clock-interval" target="_blank">github repo</a> and <a href="https://www.npmjs.com/package/clock-interval" target="_blank">a npm module</a>. If you have ideas to make this better, please post in the comments.</p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/creating-a-clock-with-setinterval/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>Understanding setInterval</title>
+      <link>https://taylorhakes.com/posts/understanding-setinterval/</link>
+      <guid>https://taylorhakes.com/posts/understanding-setinterval/</guid>
+      <pubDate>Sun, 10 Nov 2013 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;If you write a lot of Javascript, inevitably you find the need to use the functions setTimeout or setInterval.&lt;br&gt;
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>If you write a lot of Javascript, inevitably you find the need to use the functions setTimeout or setInterval.<br><a id="more"></a><br>setTimeout executes a function after a given number of milliseconds and setInterval executes a function forever at a given interval. You can read more about them here (<a href="https://developer.mozilla.org/en-US/docs/Web/API/Window.setTimeout" target="_blank" rel="external">setTimeout</a> and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window.setInterval" target="_blank" rel="external">setInterval</a>).</p>
+<p>Most developers use them, but don’t really understand what is going on behind the scenes. An interesting explanation came from <a href="http://ejohn.org/blog/how-javascript-timers-work/" target="_blank" rel="external">John Resig’s blog</a>. I originally took the information as fact without doing my own investigation. About a year ago AppNexus decided to give an interview question on setInterval. My colleague, Sam Mati, and I decided to do some tests on setInterval. Interestingly, we found John’s model of setInterval to be wrong.</p>
+<p>Here is the important diagram from John’s blog post. Notice that setInterval’s function is always placed on the event stack at 10ms intervals from the original execution time. If another event takes too much time, only one setInterval function will remain in the queue at a time.</p>
+<p><a href="http://ejohn.org/blog/how-javascript-timers-work/" target="_blank" rel="external"><img class="alignnone size-full wp-image-35" alt="timers" src="http://i2.wp.com/ejohn.org/files/Timers.png" width="427" height="320"></a></p>
+<p>We decided to create a simple test. The code executes a setInterval at a 1 second interval and then has code that runs for 1.5 seconds.<br><a href="http://jsfiddle.net/2VeYC/" target="_blank" rel="external">http://jsfiddle.net/2VeYC/</a></p>
+<p><pre><br><code class="javascript">var start = new Date();</code></pre></p>
+<p>// Mimics a long running call for a number of milliseconds<br>function waitMilliseconds(milliseconds) {<br>  var start = +(new Date());<br>  while(start + milliseconds &gt; +(new Date())) {}<br>}</p>
+<p>// First setInterval call. console.log the time<br>setInterval(function() {<br>  var current = new Date();<br>  console.log(‘setInterval executing: ‘ + (current - start));<br>}, 1000);</p>
+<p>// Some code that takes a while to run<br>var current = new Date();<br>console.log(‘start long running code: ‘ + (current - start));<br>waitMilliseconds(1500);<br>current = new Date();<br>console.log(‘end long running code: ‘ + (current - start));<br><br>If John’s explanation was correct, we should see something like this. The first setInterval would take 1.5 seconds (because of the slow code), the second would take .5 seconds to get back in sync (with the original call) and then after it would continue at 1s intervals.</p>
+<p><pre><br><code class="javascript">start long running code: 0<br>end long running code: 1500<br>setInterval executing: 1501<br>setInterval executing: 2000<br>setInterval executing: 3000<br></code></pre><br>The actual results</p>
+<p><pre><br><code class="javascript">start long running code: 0<br>end long running code: 1503<br>setInterval executing: 1505<br>setInterval executing: 2505<br>setInterval executing: 3507</code><br></pre><br>It appears that setInterval executes at the interval based on the last time it was executed. Essentially it behaves equivalent to this code. <a href="http://jsfiddle.net/u8SgN/" target="_blank" rel="external">http://jsfiddle.net/u8SgN/</a></p>
+<p><pre><br><code class="javascript">// Recreation of setInterval<br>function pseudoSetInterval(fn, time /<em> [, param1, param2, …]</em>/) {<br>    var args = Array.prototype.slice.call(arguments,2);<br>    setTimeout(function interval() {<br>        setTimeout(interval, time);<br>        fn.apply(window, args);<br>    }, time);<br>}</code></pre><br>To make sure that was correct, we created another test with only setInterval. We added long running code of 1.5s to setInterval. <a href="http://jsfiddle.net/FQFGM/" target="_blank" rel="external">http://jsfiddle.net/FQFGM/</a></p>
+<p><pre><br><code class="javascript">// Get the start of code execution<br>var start = new Date();</code></pre></p>
+<p>// Mimics a long running call for a number of milliseconds<br>function waitMilliseconds(milliseconds) {<br>  var start = +(new Date());<br>  while(start + milliseconds &gt; +(new Date())) {}<br>}</p>
+<p>var first = true;<br>setInterval(function() {<br>    var current = new Date();<br>    console.log(‘setInterval executing: ‘ + (current - start));</p>
+<pre><code>// Make the first execution take 1.5 seconds
+if (first) {
+    waitMilliseconds(1500);
+    first = false;
+}
+</code></pre><p>}, 1000);<br><br>Here are the results. It has the same result.</p>
+<p><pre><br><code class="javascript">setInterval executing: 1001<br>setInterval executing: 2504<br>setInterval executing: 3505<br>setInterval executing: 4506<br></code></pre><br>This result will not impact most javascript developers, but for games, animations, etc. it is important to know exactly how javascript’s events work.</p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/understanding-setinterval/#disqus_thread</comments>
+    </item>
+    
+    <item>
+      <title>A Few Javascript Performance Tips</title>
+      <link>https://taylorhakes.com/posts/a-few-javascript-performance-tips/</link>
+      <guid>https://taylorhakes.com/posts/a-few-javascript-performance-tips/</guid>
+      <pubDate>Sun, 19 May 2013 05:00:00 GMT</pubDate>
+      <description>
+      
+        &lt;p&gt;Recently, I’ve discovered some simple tricks to get my Javascript code to execute faster.&lt;br&gt;
+      
+      </description>
+      
+      <content:encoded><![CDATA[<p>Recently, I’ve discovered some simple tricks to get my Javascript code to execute faster.<br><a id="more"></a><br>This is not a full list, just some that I use fairly often. If anyone has others, please post them in the comments. It would be great to compile a large list.</p>
+<p>Before I begin, I would like to emphasize a phrase that every developer should know. “Premature optimization is the root all evil.” Optimization can only get you so far. Good programming practices and code structure are more important. With that, let’s get started.</p>
+<p></p><h3>Use for loops instead of Array.forEach, for.. in, jQuery.each etc.</h3><br><img alt="" src="http://assets.tumblr.com/assets/scripts/vendor/tiny_mce_3_5_10/themes/advanced/img/trans.gif"><p></p>
+<p><pre><code class="javascript">var arr = Array(10000).join(‘x’).split(‘’);<br>for (var i = 0, len = arr.length; i &lt; len; i++) {<br>   ..some code on the array<br>}</code></pre><br>instead of</p>
+<p><pre><code class="javascript">arr.forEach(function (item, i) {<br>    ..some code on the array<br>});</code></pre><br>or</p>
+<p><pre><code class="javascript">for (var i in arr) {<br>    if(arr.hasOwnProperty(i)) {<br>        ..some code on the array<br>    }<br>}</code></pre><br>In general, a for loop will execute 10x faster than Array.forEach or for..in. Here is the <a href="http://jsperf.com/array-for-vs-foreach/3" target="_blank">JSPerf comparison</a></p>
+<p></p><h3>Don’t create functions in loops or commonly used code</h3><br>Each function carries memory overhead. Define functions that are commonly used. Only use anonymous function when necessary.<p></p>
+<p><pre><code class="javascript">for( var i = 0; i &lt; 100; i++) {<br>    setTimeout(function() {<br>        .. do something<br>    }, 10);<br>}</code></pre><br>instead do this</p>
+<p><pre><code class="javascript">function repeatedFn() {<br>    .. do something<br>}<br>for( var i = 0; i &lt; 100; i++) {<br>    setTimeout(repeatedFn, 10);<br>}</code></pre></p>
+<p></p><h3>Avoid unnecessary functions calls / closures</h3><br>Even if you aren’t using anonymous functions. All functions still have overhead. Don’t create unnecessary functions.<p></p>
+<p>For instance, don’t make an add function</p>
+<p><pre><code class="javascript">function add(a, b) {<br>    return a + b;<br>}</code></pre><br>Check out this <a href="http://jsperf.com/built-in-add-vs-function-add" target="_blank">JSPerf comparison</a></p>
+<p></p><h3>Use vanilla javascript when possible</h3><br>Libraries/Frameworks can be great for code organization, cross-browser compatibility, etc. Vanilla javascript is much faster in certain circumstances. For instance, I often see people use jQuery to call the click handler on a DOM element.<p></p>
+<p><pre><code class="javascript">$testDiv.trigger(‘click’) or $testDiv.triggerHandler(‘click’);</code></pre><br>the following is cleaner and significantly faster</p>
+<p><pre><code class="javascript">onClickTest();</code></pre><br>Check out this <a href="http://jsperf.com/jquery-trigger-vs-function-call" target="_blank">JSPerf comparison</a></p>
+]]></content:encoded>
+      
+      <comments>https://taylorhakes.com/posts/a-few-javascript-performance-tips/#disqus_thread</comments>
+    </item>
+    
+  </channel>
+</rss>
